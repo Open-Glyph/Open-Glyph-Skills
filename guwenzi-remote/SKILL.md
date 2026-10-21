@@ -29,7 +29,7 @@ Choose tools from the current evidence; do not execute every row:
 | Need | Tool/command | Result |
 |---|---|---|
 | Register a whole file | `document_open` / `document open` | Original bytes, hash, page count; no reading |
-| Register a page image already available | `asset_import` | Page `asset_id` and enlarged view |
+| Register a page image already available | `asset_import` | Page `asset_id`; enlarged view available on demand |
 | See one image more clearly | `asset ASSET_ID --view` | Enlarged derivative, no new detail |
 | Ask YOLO where regions are | `layout_analyze` with `analysis_mode=regions` | Text/figure/table/caption proposals and overlay; no OCR |
 | Get optional projection lines/slots | `layout_analyze` with `regions_lines` or `split_line` | Suggestions only; use only when AI needs localization |
@@ -40,14 +40,30 @@ Choose tools from the current evidence; do not execute every row:
 | Reconstruct a printed bitmap | `glyph_compose` | Model-written KAGE derivatives, labelled reconstruction |
 | Save the agent's reading | `transcribe` | Structured text and glyph references stored with page/block evidence |
 
-`page_prepare` and `document prepare` are compatibility operations from an older combined workflow. Do not use them as the default reading strategy: they can run layout, projection and bulk slot creation before an agent has decided that any of those are needed. Prefer a page-image/native-evidence primitive exposed by the host, then call the atomic tools above. If a legacy host exposes only `page_prepare`, treat its result as unverified evidence, not as OCR or a finished transcription.
+## Fast evidence workflow (inspect live schemas first)
+
+Use `guwenzi-tools tools --server` to check capabilities; do not assume a host has the new arguments. On performance-enabled hosts, `page_prepare` accepts `detail=image|regions|lines|slots`. Start with `detail=image` to get the page and its source text without YOLO or character cutting; native text is still source evidence, not a verified reading. In CLI 0.3.6+, `page image DOCUMENT_ID PAGE --output DIR` selects this mode. Older clients can use `call page_prepare --json @request.json`.
+
+Use `layout_analyze` only if region localization helps: `regions` generates only regions, `regions_lines` adds lines, and `regions_slots` explicitly adds every character slot. Do not request slots simply to read a paragraph. A legacy host without these semantics may still do expensive combined preparation; treat that as compatibility fallback, not the default.
+
+For several uncertain forms, collect their original-pixel boxes first, then issue a batch under an existing tool name:
+
+- `crop`: `{"items":[{"asset_id":"asset:...","bbox_px":[10,20,70,90]}, ...]}` (up to32).
+- `glyph_search`: `{"asset_ids":["asset:...","asset:..."],"top_k":8}` (up to16).
+- `glyph_compose`: `{"items":[{"kage_json":"...","hint_asset_id":"asset:..."}, ...]}` (up to16).
+
+CLI 0.3.6+ supports `batch TOOL --json @request.json --output DIR --preview-only`; the generic `call TOOL` works on earlier clients too. Batches retain per-item indices and original assets. Crop/compose report individual invalid-item errors; search validates the query assets together and an invalid input fails that search job. Inspect the labelled contact sheet together, then fetch individual originals only where needed. The sheet is a resized preview, not source pixels; never use its cell coordinates as crop coordinates. Search sheets show up to8 candidates per query; an expanded 32-candidate result may require inspecting the remaining originals before concluding no match.
+
+Read the whole paragraph first, identify uncertainties, obtain evidence in a batch, then review and transcribe the whole region. Reuse an already-verified occurrence or an identical-image result; do not merge different forms just because they share a Unicode label. Do not repeat search or regenerate a KAGE recipe merely because the same form occurs again. An unresolved form still needs explicit uncertainty, not a lower acceptance threshold.
+
+Enlarged views are generated on demand (`asset ASSET_ID --view`); returned original pixels and provenance remain available even if no `view` field is materialized yet. All tools remain evidence primitives: job completion is not a finished OCR transcription.
 
 ## Image-page decision pattern
 
 For a scanned or image-only page:
 
 1. Obtain the page image and let the agent inspect it at a readable scale.
-2. Call YOLO layout analysis with `regions`, not all slots. Keep figure/table regions as ordered visual objects.
+2. If region localization is needed, call YOLO layout analysis with `regions`, not all slots. Skip it for an already readable, localized paragraph. Keep figure/table regions as ordered visual objects.
 3. Inspect each proposed text region. If the agent can read a region, transcribe the whole region directly; do not download every slot.
 4. If one character is uncertain, choose a crop box from the readable region and call `crop`.
 5. Call glyph search only for that crop. Compare the actual candidate images, not just scores. A miss does not prove that the form lacks Unicode.
@@ -73,7 +89,7 @@ A useful hybrid is: layout region → deskew → row/column projection → slot 
 For a PDF with a text layer:
 
 - preserve and read the native text as the source layer;
-- preserve embedded images, fonts, paths, and page coordinates;
+- preserve embedded images, fonts, paths, and page coordinates; `detail=image` gives a lightweight render/text trace, not a complete font/path extraction. When those assets are needed, request the host's native evidence with the same mode/DPI, keeping the source PDF;
 - use visual evidence to check encoding gaps or suspicious text;
 - if an unencoded path/image character is unknown, crop or retrieve that individual form using the same atomic image tools;
 - submit an external correction, reading, or glyph reference separately from the original source text.
@@ -90,6 +106,7 @@ Native extraction is not a reason to skip visual evidence, and visual retrieval 
 - A projection boundary is not proof that one crop is one character; correct it with `crop` when needed.
 - Preserve failed search evidence when direct source text later resolves a character; this demonstrates that retrieval and identification are different claims.
 - Use `--detach` and `status JOB_ID --wait --output DIR` for long jobs.
+- A newly started instance may spend extra time preparing model/index caches. Resume the accepted job by ID instead of submitting it again; a fast repeat-cache hit is not the expected latency of every new query.
 - Never repeat an uncertain POST blindly. Keep the job receipt and inspect its status first.
 - Do not place base64 images or entire catalogues in the model context; fetch only the evidence needed for the next decision.
 

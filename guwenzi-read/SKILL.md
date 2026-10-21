@@ -15,9 +15,11 @@ description: Read and explain ancient-character papers and excavated-text materi
 
 原文、作者释读、Agent 修订和字形身份必须分开记录；不要用释读覆盖原文字层。
 
+`detail=image` 是轻量取页和文字 trace，不代表已经提取全部字体或 path。需要这些原生资产时，再在同一 mode/DPI 下请求相应原生证据；不要只因先看了页图，就把有原始曲线的字改成位图描摹或重新造字。
+
 ### 图片型 PDF / 图片 / Office 页面
 
-先拿到页面图，再按需调用 `layout_analyze` 的 `regions` 模式。YOLO只负责提出文字、图、表、图注等区域；图表按顺序保存，不强迫识别。Agent查看放大的文字区域后：
+先检查 `tools --server`。新服务用 `page_prepare` 的 `detail=image`（CLI 0.3.6+：`page image`）只取页图和原生文字证据，再按需调用 `layout_analyze` 的 `regions` 模式。已有清楚的段落图或明确裁框时可直接阅读，不为看清一段而生成整页字槽。YOLO只负责提出文字、图、表、图注等区域；图表按顺序保存，不强迫识别。Agent查看放大的文字区域后：
 
 1. 能读出的文字直接输出整块文字；
 2. 不确定某个字才选择局部框并 `crop`；
@@ -27,6 +29,10 @@ description: Read and explain ancient-character papers and excavated-text materi
 6. 最后用 `transcribe` 保存完整文字区域及结构化字形引用。
 
 不要默认生成所有字符槽，也不要把槽位边界当成字形真值。
+
+一段里有多个疑字时，先集中列出原图坐标，再用 `crop` 的 `items`、`glyph_search` 的 `asset_ids` 批量取得证据；参数以远端 schema 为准。一次查看带编号的候选拼图后，仅对仍不清楚的项取原图放大。原文、字体与映射表最后统一整理，避免每识一个字都重新排版整份文档。批量不能省略逐项证据或把相似分数变成确认结论；同 Unicode 也不意味着可以合并不同原形。
+
+新实例第一次检索可能包含模型和索引缓存准备。已取得任务 ID 后，通过 `status` 继续等待，不因终端等待超时重新提交整批；缓存命中很快，也不能据此承诺所有新疑字都同样快。
 
 ## 定位、投影与最终裁框
 

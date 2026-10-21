@@ -30,6 +30,8 @@ guwenzi-tools call glyph_compose --json @recipe.json --output work/reconstructio
 
 配方应包含原图哈希、`source_kind`、构造理由、root 和完整组件表；保留精确 `@版本`，不剥除版本或静默替换组件。渲染成功不代表恢复了原字体，更不等于获得了 Unicode 释读。
 
+需要多个新排形时，先为每个不同原形准备配方，再检查远端 schema 是否支持 `glyph_compose` 的 `items` 数组；支持时一批提交并查看并排校样。每项仍独立保留原图引用和核对状态，只重做校样中有问题的项。精确相同且已核对的配方复用结果，不因文中重复出现而重复造字；字体和全文 PDF 在字形确认后统一构建，不在每次局部修订时重建全部成果。
+
 ## 本地伴随工具
 
 `guwenzi-tools` 是轻量远程客户端，不自动安装 Node、KAGE 引擎或 GlyphWiki 数据。若用户明确安装了 `guwenzi-glyph`，再以其 `--help` 为准调用 `lookup`、`parts`、`ids`、`render`、`compose` 和 `build-font`。否则优先使用远程 `glyph_compose`，不要假设本机存在私有路径。
