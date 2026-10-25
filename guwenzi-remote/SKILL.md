@@ -5,6 +5,15 @@ description: Use guwenzi-tools as an agent-controlled set of atomic document, im
 
 # Guwenzi remote tools: agent decides the next action
 
+## Vertical reading and direct font comparison
+
+Inspect the live schema. For vertical columns, use split_line direction=vertical-ttb without rotating source pixels. layout_analyze writing_mode=vertical-rl orders right columns first and characters top-to-bottom; vertical-lr is left-column-first, horizontal-tb preserves ordinary horizontal text. Geometry is a proposal, not reading confirmation.
+
+Use reading_plan when explicit section/slip/column and unit order is needed. regions carry original-pixel bbox, section_id, role, writing_mode and units; multiple sections require section_order. Separate main text, annotation, photo fragments and print columns; do not globally sort a mixed page by x. alignments retain source_ids/target_ids plus monotone anchors, including empty-side gaps and 1:n compounds. Keep every omission square, omission mark and unassigned fragment; equal counts or equal y coordinates do not prove correspondence.
+
+Do NOT use DINO for font acceptance. glyph_verify items take source_asset_id, final font_asset_id and codepoint (including font-local PUA) and return direct rendered-font differences. Recheck every source occurrence, including Unicode and symbols, against the final combined font. A pass covers only the stated raster tolerance, not identity; needs_review retains a printable candidate and diagnostic evidence, not a task failure or permission to claim completion. Fix selected components or structural layout then recheck; avoid endless retries for scan/style differences. No public/private page upload beyond the user's authorized workflow. If new tools are absent from the live schema, report the deployment gap instead of inventing calls.
+
+
 This is an atomic-tool contract, not a fixed OCR pipeline. The remote service does not contain a multimodal language model and does not decide which glyph needs research. The calling agent must inspect returned images, write the text it can read, and request more evidence only when necessary.
 
 ## Authentication and safety
@@ -37,7 +46,8 @@ Choose tools from the current evidence; do not execute every row:
 | Search a doubtful glyph | `glyph_search` / `glyph search` | Candidate images and neutral `cN` IDs |
 | Commit a candidate choice | `glyph_select` | Binding and source identity, still unverified |
 | Preserve a glyph with no match | `glyph_register` | `gwz:sha256:` identity for the original bytes |
-| Reconstruct a printed bitmap | `glyph_compose` | Model-written KAGE derivatives, labelled reconstruction |
+| Find reusable glyphs/parts | `glyph_lookup` | Versioned glyph_ref, real previews, variant pages; mode=parts exposes named parts/templates |
+| Reuse or assemble printable glyphs | `glyph_compose` | Supply glyph/ids/structure; server writes KAGE, SVG/PNG and OTF/TTF/cmap/Word |
 | Save the agent's reading | `transcribe` | Structured text and glyph references stored with page/block evidence |
 
 ## Fast evidence workflow (inspect live schemas first)
@@ -48,9 +58,11 @@ Use `layout_analyze` only if region localization helps: `regions` generates only
 
 For several uncertain forms, collect their original-pixel boxes first, then issue a batch under an existing tool name:
 
-- `crop`: `{"items":[{"asset_id":"asset:...","bbox_px":[10,20,70,90]}, ...]}` (up to32).
-- `glyph_search`: `{"asset_ids":["asset:...","asset:..."],"top_k":8}` (up to16).
-- `glyph_compose`: `{"items":[{"kage_json":"...","hint_asset_id":"asset:..."}, ...]}` (up to16).
+- `crop`: `{"items":[{"asset_id":"asset:...","bbox_px":[10,20,70,90]}, ...]}`.
+- `glyph_search`: `{"asset_ids":["asset:...","asset:..."],"top_k":8}`.
+- `glyph_compose`: `{"items":[{"glyph":"<glyph_ref>","hint_asset_id":"asset:..."},{"ids":"⿱艹⿰日月","hint_asset_id":"asset:..."}]}`.
+
+Policy-enabled hosts queue accepted work and split large batches internally; do not invent a total page, glyph, iteration or elapsed-time cutoff. A contact sheet may have multiple pages: inspect `contact_sheets` as needed, while full results remain available. Older hosts may still expose batch ceilings in their live schema; split the work without omitting items. CLI 0.3.7+ streams uploads without a client file-size quota and waits until completion or user cancellation by default. An explicit `status --timeout` is the caller's choice, not a server task deadline. A receipt with unknown acceptance must still never be replayed blindly.
 
 CLI 0.3.6+ supports `batch TOOL --json @request.json --output DIR --preview-only`; the generic `call TOOL` works on earlier clients too. Batches retain per-item indices and original assets. Crop/compose report individual invalid-item errors; search validates the query assets together and an invalid input fails that search job. Inspect the labelled contact sheet together, then fetch individual originals only where needed. The sheet is a resized preview, not source pixels; never use its cell coordinates as crop coordinates. Search sheets show up to8 candidates per query; an expanded 32-candidate result may require inspecting the remaining originals before concluding no match.
 
@@ -68,10 +80,26 @@ For a scanned or image-only page:
 4. If one character is uncertain, choose a crop box from the readable region and call `crop`.
 5. Call glyph search only for that crop. Compare the actual candidate images, not just scores. A miss does not prove that the form lacks Unicode.
 6. Recheck the source sentence, parenthetical reading, author's explicit character name and clear component structure. Use those direct signals with a Unicode/GlyphWiki lookup before declaring the form unencoded.
-7. If a candidate is useful, select it as an unverified binding. If no candidate is defensible, register the original crop. For a genuinely unencoded printed form that must be typeable, write and validate a KAGE recipe with `glyph_compose`; keep known characters on their standard Unicode codepoints.
+7. If a candidate is useful, select it as an unverified binding. If no candidate is defensible, register the original crop. For a genuinely unencoded printed form that must be typeable, first use `glyph_lookup` to reuse an existing glyph or choose components, then call `glyph_compose` with `glyph`, `ids`, or `structure`; keep known characters on their standard Unicode codepoints.
 8. Submit the complete region text with structured glyph/image references through `transcribe`.
 
 The agent, not the service, decides whether a character is known, uncertain, unencoded, or worth reconstructing. Do not turn a table into hundreds of forced OCR slots.
+
+## Structural composition, not stroke programming
+
+The agent selects structure and variants; the service resolves versioned component programs, computes layout, and writes all KAGE. Never author kage_json, root/table, stroke coordinates or a low-level KAGE tutorial. Check live schemas: if glyph_lookup or glyph/ids/structure is absent, report the deployment gap instead of reverting to raw programs.
+
+Use glyph_lookup(query=character or glyph name) and inspect previews; glyph_compose(glyph=returned glyph_ref) reuses an entire shape. A public gwz code from glyph_select can enter lookup; direct composition bridges a GlyphWiki source only when its snapshot matches. DINO remains the existing server-side image search, not a font acceptance test. Neither models nor the whole database belong in each agent sandbox.
+
+For a new arrangement, use ids="⿱艹⿰日月" or structure={op:"⿰",children:[{glyph:REF},{glyph:REF}],weights:[1,2]}. Prefer mode=parts to obtain an existing glyph's reusable components/template; do not reconstruct ordinary components stroke by stroke. The template's boxes are machine-generated. An unavailable component is an explicit gap, never a blank or guessed familiar substitute. Preserve Unicode, original evidence and printable candidates separately.
+
+gwk: fixes a component program and its dependency closure; gwz: identifies glyph evidence. Neither establishes a reading. Reuse validated outputs. Raw KAGE artifacts are retained for reproducibility, not for the model to edit.
+
+## Printable font delivery
+
+For printable output, check the live compose schema for `unicode_codepoint`. Supply an already-confirmed character explicitly (e.g. `"U+655A"`); omit only when no standard codepoint can be asserted, which yields font-local PUA, not an identity claim. The existing PNG `asset` is just the visual preview. Require `print_font.status=ready`, then fetch/publish its OTF or TTF, mapping, copyable text and optional embedded-font Word sample. For batches use the top-level combined font, not concatenated single-font U+E000 values. Report partial/failed packs and encoding conflicts; do not silently remap or call images an editable font. On old hosts report the missing capability instead of inventing fields or retrying POSTs. Existing native Unicode text does not need composition merely to remain printable.
+
+For faithful source-print reproduction, verify EVERY transcribed position, including ordinary Unicode and punctuation, against the actual final font/document rendering. Font generation `ready` is not visual acceptance. Source/font/hash coverage alone does not compare shapes. DINO cosine (even above 0.95) cannot authorize export; also inspect local missing/extra strokes, curves, joins and counters. Do not dismiss different structures as font style. Preserve source, codepoint, font/render hashes and differences; changed evidence invalidates prior approval. Revise glyph selection, components or layout, then re-render and re-check, without lowering the threshold to force a pass. A blocked candidate remains a printable draft, not a blank and not a completed faithful transcription. Report false rejections and unresolved differences; no promise of exact font recovery from a blurred scan. Use local `guwenzi-glyph verify-font` only if actually installed and listed by `--help`; do not invent a remote tool or claim this local feature has been deployed. This final typesetting check does not require slotting every character for ordinary reading.
 
 ## Projection and crop boundaries
 
