@@ -2,6 +2,21 @@
 
 这是 Open Glyph（开放古文字）的可复用 Agent Skills 集合，供能够读取 `SKILL.md` 的 Agent 使用。
 
+## 0.5.1：交付字体正文，验收不作完成门槛
+
+新造字不再只交 PNG。KAGE 产生轮廓，程序统一分配字体内码位并汇编 OTF/TTF，最终给出可编辑 Word、字体文字 HTML/PDF 和字体映射包；原图核对表是独立附注。普通 Unicode 保留原码，未确认身份的形保留 gwz 身份和字体局部 PUA。
+
+```sh
+python -m pip install -U 'guwenzi-tools[fonts]'
+guwenzi-tools typeset manuscript.json --output delivery
+```
+
+manifest 的 sections 使用 text/text_path，fonts 使用 font_path/mapping_path；正文以 `⟦gwz:…⟧` 引用新造字，由程序解决多个单字字体均占 U+E000 的冲突。`--pdf` 需要已有 WeasyPrint/Pango；Word 和 HTML 不依赖 PDF 引擎。
+
+网站使用 TaskState / PreparePage / RecordReadings / ComposeCandidates / ExportCapture，专用检测器和程序管理坐标、字序、来源与逐字清单；模型不手工裁字、不逐笔写 KAGE。CLI 用户走独立的[原子工具参考](guwenzi-remote/references/atomic-cli.md)。
+
+**字形核对是可选质量诊断，不再作为任务完成条件。** 未核对、needs_review 或 blocked 不阻止可用成果交付，不自动触发反复修复；质量记录保留，不能把“已交付”说成“字形全部确认”。缺实际字体、损坏文件、编码冲突仍如实报错，不把图片或空白冒充字体文字。
+
 ## 0.4.0：结构化组字，不再手写笔画
 
 先用现有 DINO 检索找候选，或用 `glyph_lookup` 查整字、变体和部件；再给 `glyph_compose` 一个选中的字形、IDS 或结构树。程序负责部件依赖、布局和底层 KAGE，Agent 负责选择与核对。
@@ -12,11 +27,11 @@ guwenzi-tools glyph lookup 旣 --output work/variants
 guwenzi-tools glyph compose --ids '⿱艹⿰日月' --output work/composed
 ```
 
-检查 `tools --server` 是否包含 `glyph_lookup` 以及 `glyph_compose` 的 `glyph/ids/structure` 参数。旧 `kage_json` 输入已退役；旧服务需同步升级，不让 Agent 回退到逐笔编程。字库与模型在服务端，不向每个沙箱复制。字体生成成功仍需原图核对，DINO 分数不作验收依据。
+检查 `tools --server` 是否包含 `glyph_lookup` 以及 `glyph_compose` 的 `glyph/ids/structure` 参数。旧 `kage_json` 输入已退役；旧服务需同步升级，不让 Agent 回退到逐笔编程。字库与模型在服务端，不向每个沙箱复制。字体生成不证明字形正确；可按需核对原图，DINO 分数不作完成门槛。
 
 ## 三个 Skill
 
-- [`guwenzi-remote`](guwenzi-remote/SKILL.md)：最基础、最重要的工具调用 Skill。说明如何使用 `guwenzi-tools` 登录、提交文档、调用 YOLO 版面分析、投影裁切、DINO 字形检索、整字复用与结构化组字、转写和导出。它强调每次读取结果后由 Agent 自己决定下一步，不要求固定流水线。
+- [`guwenzi-remote`](guwenzi-remote/SKILL.md)：最基础、最重要的工具调用 Skill。说明如何使用 `guwenzi-tools` 登录、提交文档、调用专用单字检测、DINO 字形检索、整字复用与结构化组字、转写和字体正文导出。它强调每次读取结果后由 Agent 自己决定下一步，不要求固定流水线。
 - [`guwenzi-read`](guwenzi-read/SKILL.md)：古文字论文、扫描资料、PDF、Word、PPT 的证据提取、阅读、比较与释读记录。
 - [`guwenzi-compose`](guwenzi-compose/SKILL.md)：古文字组字、KAGE 据图重建、字体映射和古文字论文撰写排版。
 
@@ -33,7 +48,7 @@ guwenzi-tools login
 
 登录凭据由用户在 Open Glyph 网站中授权。Skill 不包含服务地址、Token、AccessKey 或任何用户数据。
 
-## 0.3.6 配套的快速阅读方式
+## 历史原子工具能力（非网站默认流程）
 
 先用 `guwenzi-tools tools --server` 检查远端支持的参数。新版 CLI 和支持新参数的服务可以：
 

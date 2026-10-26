@@ -1,95 +1,52 @@
 ---
 name: guwenzi-compose
-description: Compose or reconstruct ancient-character glyphs and write evidence-based palaeographic papers by reusing catalog glyphs or assembling IDS/components, with printable fonts and verifiable evidence. The agent never authors low-level stroke programs. Do not use this skill for ordinary reading alone.
+description: Reuse or structurally assemble palaeographic glyphs with KAGE-backed fonts, Unicode or font-local PUA mappings and source-to-final-font comparisons. The agent chooses existing parts, never programs individual strokes. Not for ordinary reading alone.
 ---
 
-# 古文字组字、重建与论文排版
+# 结构化造字、打印字体与校样
 
-## 线上直接图形复检（以 live schema 为准）
+AI负责看图、选整字/变体/部件和表达结构；程序负责坐标、部件依赖、KAGE笔画、字体与文档。**不写kage_json、table、笔画数字串或逐笔坐标。** 不给每个沙箱安装KAGE、DINO或整字库。
 
-本流程不使用 DINO 做字体验收。glyph_compose 带 hint_asset_id 时检查 print_font.visual_acceptance；ready 只说明文件可下载。已有最终字体或批次合并字体，用 glyph_verify 的 items 批量传 source_asset_id、font_asset_id、codepoint。不要把单字字体的 PUA 地址套到合并包；以最终 cmap 为准。原图和字体必须属于当前任务。
+## 网站：按编号，不按手工框
 
-glyph_verify 直接比较最终字体渲染并返回 difference_asset、render_asset、evidence_asset。pass 仅是所列图形容差内通过，不是字符身份认证；needs_review 则具体看差异，修正选字、部件或布局后重查，不把它当工具异常重发，也不把所有粗细差异都判作错字。保留候选的可打印文字及原图，禁止将未通过结果标为精确复原。没有此工具时说明服务尚未更新，不虚构成功。
+遵守guwenzi-remote的托管契约。原片由专用检测器登记，模型不能重裁或补框。SearchCandidates(page_key,unit_ids)查形，glyph_lookup(query,mode)查看实际字库整字/变体/部件；不能用“能输入Unicode”替代原形比较。
 
-竖排页面的字形保持正立；先按段落/简号和列方向确定 source occurrence，再做字体映射。同 Unicode 的异形不合并来源身份。missing_mark、omission_mark 和分段边界保留序号，符号也参与最终字体检查。原形、PUA 地址和文献释读分层保存。
+先逐批RecordReadings保存文字/角色（未知可先null加具体note），不要等所有字造好才存台账；初录完成后再集中ComposeCandidate或ComposeCandidates。输入page_key、unit_id及glyph/ids/structure，模型不填写hint_asset_id，程序从编号绑定。每次只修有证据差异的项，不因上下文整理重复已做的整批组字。
+
+- 有匹配整字就复用lookup返回的glyph_ref，不拆笔画。
+- 无整字再用IDS，如 `⿱艹⿰日月`，或 `{"op":"⿰","children":[{"glyph":"实际左部引用"},{"glyph":"实际右部引用"}],"weights":[1,2]}`。
+- glyph_lookup(mode="parts")给现成部件和模板。可选择/替换实际部件；不编底层笔画。找不到就记录具体缺口，不能偷换熟字或空白冒充成功。
+- 已确认标准字传unicode_codepoint；不确定就省略，用字体局部PUA，不据字库名字自动断言字符身份。
+
+VerifyCandidates可按需比较编号原片与指定字体和码位，作为质量诊断。ExportCapture汇编文档字体并另存原图对照；旧比较不自动成为新字体的验收。修改文字会撤销旧字体/比较绑定；未比较或有差异不阻止交付，也不要求为了完成重新比较。
+
+## 正文必须是字体文字，不是插图
+
+用户要求排印、可编辑释文或打印字体时，主交付必须是正文 DOCX/HTML/PDF 加统一 OTF/TTF 与 mapping。原图对照表只作独立附注，不能用图文混排或单字校样替代整篇正文。
+
+网站 ExportCapture 默认 delivery=typeset：程序按台账汇编统一文档字体，解决多个单字包的 U+E000 冲突，并嵌入正文 Word/PDF。SaveTranscription 优先保留 composition 的 gwz 身份，不用原先猜读替掉已造字形。needs_print_fonts 会列出待补 unit_id；先查形并 ComposeCandidates，不能删字、留空或改用图片后宣布成功。delivery=evidence 仅供暂存阶段证据。
+
+汇编字体是新的产物，旧比较不自动证明新字形正确。可以直接交付可打印正文，质量情况另列；不以验收结果作为完成条件，也不把未核对说成全部同形。长期身份用 gwz 与版本记录，PUA 只属于随文档交付的字体包。
+
+外部 CLI 在 --help 确认存在 typeset 后，用 `guwenzi-tools typeset manuscript.json --output 交付`。manifest 的 sections 给 text/text_path，fonts 给本地 font_path/mapping_path；正文引用 `⟦gwz:…⟧`，不要手抄各单字包的 PUA。程序输出整篇文字、嵌入字体的 Word、HTML、字体与映射 ZIP；--pdf 需要本机已有 WeasyPrint/Pango。旧 CLI 无此命令时说明需更新，不能把 reading.html 的图片预览叫排印成果。
 
 
-本 Skill 只在用户要求组字、无编码字形重建、字体/字形表或古文字论文写作排版时使用。阅读文献和按需检索先使用 `guwenzi-remote` 与 `guwenzi-read`，不要预先批量处理整页或所有槽位。
+## 字体与证据不能混淆
 
-## 字形层必须独立保存
+print_font.status=ready只表示OTF/TTF、mapping、可复制文本和校样文件生成。PNG是预览，不是可编辑文字。控制层自动发布字体产物，无需PublishFile。
 
-始终区分：原始图片/path、来源字体/码位、`gwz:`具体资产、KAGE重建程序、派生字体、作者释读和 Agent 推断。任何派生 SVG、PNG、OTF 或现代字都不能替代原件。不要做 NFC/NFKC、繁简转换或静默码位替换。
+批量优先用合并print_font；单字包的U+E000不能在同一字体里直接串联。局部PUA只在对应font/cmap内有效；gwz保留稳定资产身份，二者都不是正式Unicode认证。同Unicode异形保留独立来源，遇到编码冲突须报告。
 
-## 优先复用，再按结构组字
+原始照片/path、来源字体、检测编号、gwz资产、KAGE重建、排印字体、作者释读和模型推断分层保存。不做NFC/NFKC、繁简转换或静默替字。原件不被重建字替换；字体嵌入不等于内容版权授权。
 
-AI 负责看图、选字/变体/部件、判断上下左右关系与复核；程序负责部件依赖、布局、全部笔画坐标和字体生成。不要编写 KAGE 数字串、自包含 table/parts、kage_json 或逐笔描画，也不要求沙箱安装 Node、KAGE 或整个字库。
+## 可选质量诊断，不是完成门槛
 
-1. 有原始字体/PDF path 时优先保留原始曲线。已确认字符保持正式 Unicode，不因造字改成释读字。
-2. 可疑字先用已有 glyph_search 做 DINO 图像检索并查看候选；选定后 glyph_select 给出的公开 gwz 编码可交 glyph_lookup。能关联到 GlyphWiki 且来源快照相符的候选可以直接复用。图片字库与 KAGE 程序库不是一回事，非 GlyphWiki 图片不保证有可组字部件。
-3. 已知字或部件用 glyph_lookup 查询，查看实际预览后选 glyph_ref。有合适整字/异形时直接 glyph_compose(glyph=...)，不要拆成笔画重造。
-4. 无合适整字才传 IDS（如 ⿱艹⿰日月），或包含选定部件引用的结构树。由服务自动解决部件与依赖；比例需修正时用 weights，换形时换 glyph_ref。
-5. 需要从现成字取部件时，用 glyph_lookup(mode="parts")。工具返回候选预览和可用的结构模板；模板中的 boxes 由程序提供，通常只需替换 children 中的 glyph。
-6. 找不到部件时查更小的已有部件，保留具体缺口和原图，不偷偷换成熟字、不用空白冒充完成，也不退回让 AI 写整字底层笔画。拓本、手写、残损形不强行变成现代排印体。
+字形核对按研究需要或用户要求开展，不强制每字先验收再交付。普通Unicode、PUA和符号都可检查实际字体渲染；源图/字体/码位变化后旧比较不代表新结果。检查点包括缺点、多笔、部件、开闭和连接，不能把结构错说成风格差异。
 
-## 结构化工具（先检查 live schema）
+DINO余弦0.95不是准确率，也不用于验收。glyph_verify的pass只说明规定的图形容差内一致，不是学术认证；needs_review/blocked只是提示。扫描噪声/粗细也可能触发提示，保留质量记录即可正常结束和交付，不自动反复修复。只有缺文件、坏字体或编码冲突这类实际不可交付问题才报错；不承诺从模糊扫描恢复唯一原字体。
 
-必须有 glyph_lookup，且 glyph_compose 支持 glyph/ids/structure；旧服务缺这些字段时说明需要更新，不虚构调用，不回退到旧配方教程。
+## 外部CLI
 
-~~~sh
-guwenzi-tools glyph lookup 旣 --output work/variants
-guwenzi-tools glyph lookup u65e3-j --mode parts --output work/parts
-guwenzi-tools glyph compose --ids '⿱艹⿰日月' --output work/composed
-~~~
+仅在无网站托管工具时用 `guwenzi-tools tools --server` 确认glyph_lookup、glyph_compose的结构字段及glyph_verify。原子compose的hint_asset_id来自已登记原片；字段以真实schema为准。例：`guwenzi-tools glyph lookup 旣 --output work/variants`、`guwenzi-tools glyph compose --ids '⿱艹⿰日月' --output work/composed`。下载字体和mapping，批量用合并包；不把网站工具名当CLI子命令。
 
-网页沙箱直接调用已暴露的原子工具，不为这些步骤安装 CLI。DINO 与字库查询在服务端执行，不给每个沙箱复制模型或整库。
-
-调用示意（引用必须替换为本次 lookup 的真实结果）：
-
-~~~json
-{"glyph":"<glyph_ref>","hint_asset_id":"<original_asset_id>","unicode_codepoint":"U+65E3"}
-~~~
-
-~~~json
-{"structure":{"op":"⿰","children":[{"glyph":"<left_ref>"},{"glyph":"<right_ref>"}],"weights":[1,2]},"hint_asset_id":"<original_asset_id>"}
-~~~
-
-glyph、ids、structure 三选一。上下/左右/包围/交叠等为几何提案，不自动证明字符身份；不支持的扩展 IDS 应报告，不能删掉选择符凑成可用结构。批量用 items，每项仍带自己的原图和可选确认码位。先看合并校样，只修有差异的项，最后统一字体与全文排版。
-
-gwk: 引用固定的是字库程序及完整依赖闭包，gwz: 指具体字形资产，二者不等同于 Unicode 或释读。部件版本变化需重新看图选取；服务保存内部 KAGE 配方作复现证据，但不要把它重新交给 AI 逐笔编辑。
-
-## 可排印字体输出（先检查服务 schema）
-
-支持 `unicode_codepoint` 的 `glyph_compose` 会同时生成 `print_font`：OTF、TTF、mapping、可复制文字、内嵌字体的 DOCX 校样和 HTML 校样。已确认的标准字在请求中明确传如 `"unicode_codepoint":"U+655A"`；不要从 root 名称自动推断身份。省略时仅分配字体局部 PUA，不等于确认该形无 Unicode，也不允许用猜读填写码位。旧服务无这些字段时说明能力缺口，不把 PNG/SVG 当作已完成的字体交付。
-
-检查 `print_font.status`，下载并交付 `otf_asset` 或 `ttf_asset`、`mapping_asset`、`text_asset`，需要 Word 时附 `word_sample_asset`；`asset` 仍是视觉校样，不能代替这些字体产物。CLI 可用 `asset ASSET_ID --output glyphs.ttf`；网页环境用 FetchAsset、PublishFile。OTF保留三次曲线，TTF做有误差记录的曲线转换，不做位图描边。
-
-多字优先使用批次顶层的合并 `print_font`，不要把各单字字体的 U+E000 直接拼成一段；合并包才统一分配不冲突码位。同一字体包映射可复用，跨字体包的 PUA 不是全局编码。同码位异形冲突、部分失败或未生成字体要明确报告，不静默改码。
-
-要求可编辑/打印文字时，验收包含：字符可复制、cmap与mapping一致、Word/PDF使用了对应字体、原图仍可回看。已编码正文不得仅以图片交付。字体嵌入不等于内容版权授权，学术核对状态仍单独保留。
-
-## 原排复现的逐项字形验收
-
-本节用于逐字照录或忠实复现原书打印体，不用于新写说明文字。所有被照录的位置都要检查，普通 Unicode、PUA、缺字框及省略符号均不免检。相同 Unicode 不等于相同排形；弯笔、点画、封口、连接不同不能一概解释成“字体风格”。
-
-验收对象必须是最终 OTF/TTF 或最终 HTML/PDF/DOCX 中实际使用的字体渲染，不能只比较 SVG 预览或检查哈希。原图、最终字体、实际渲染、码位与位置都应绑定；任何一项改变均重新计算，不能沿用旧的“已核对”标记。最终文档仍须检查字体回退与裁切。
-
-DINOv2 余弦分数只用于筛查/排序，0.95 不是正确率，也不是放行凭证。高分仍要做局部缺笔/多笔、连接与开闭结构比较；低分也可能来自比例、粗细或扫描噪声，不能直接判错字。保留对齐规则、各项指标、差异图和门槛，禁止通过局部弹性变形、删除疑似小点、放宽门槛来掩盖差异。二值化可用于诊断，不把二值描边替代 KAGE 造字。
-
-已安装的本地工具若在 `--help` 中提供 `verify-font`，可批量提交最终字体与逐位置原图；以其实际退出码和证据为准。没有该能力时不得声称自动验收通过，也不得假定远程已发布同名工具。`print_font.status=ready` 仅说明字体文件可用，不说明原形一致；检查独立的 `visual_acceptance`。原生曲线提取也需验证最终字体转换结果。
-
-发现结构差异就修正选字、部件或结构布局，再渲染最终字体、重新比较，只重做受影响项。保留可打印候选、原图与稳定来源 gwz 标识，不用空白替代字形；但未通过或证据不足只能标为未完成校样，不能冒充验收结果。反复迭代没有改善时说明未解决差异，不盲目死循环或承诺从模糊扫描恢复唯一原字体。严格比较器也要用漏点、错部件及同形轻微模糊的正负对照检验，公布误放和误拦，不能仅凭“全被拦住”就宣称可靠。
-
-## 论文论证
-
-每个新释读至少分开讨论：字形依据、同文/文例依据、文献旁证和反例检查。正文必须能回到页码、原图、字形资产和出处。括注释读不能替代原形；相似字形不能自动证明同字同音。
-
-## 字体编码
-
-- 有正式 Unicode 的字继续映射正式码位；不要为了保存论文中的每一个排形而全部改成 PUA。
-- 只有无正式码位、但确需输入的字形/部件落入字体局部 PUA。PUA 只是该字体 `cmap` 中的调用地址，不是官方字符身份。
-- 同一字符的论文原排异体若需精确区分，可另保留字形实例和原图；语义文本层仍优先使用正式 Unicode。
-- `build-font` 若默认把所有输入分配到 PUA，最终组装时要把已确认字符恢复到正式码位，并在 mapping 中只留下真正无编码项的 PUA。
-
-## 排版交付
-
-交付原始图/path、程序生成的内部 KAGE 证据、组件版本、逐字 SVG、可选 OTF、字体 SHA、Unicode/PUA 映射表、原图—字体并排校样、manifest、可编译源码和最终 PDF。PUA 只在对应字体和 mapping 中有效；没有原始轮廓时保留图片作为研究证据。实际打开或打印产物检查字形非空、码位可复制、字体已嵌入。编译成功和视觉相似都不等于学术确认。
+论文论证要分别给字形、同文/文例、文献旁证与反例；相似形不证明同字同音。需要完整论文时保留可编译源码、原图、字体映射与PDF，明确未验收项。普通解释文字不强制每个字造字。
