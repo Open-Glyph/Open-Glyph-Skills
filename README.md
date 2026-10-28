@@ -2,6 +2,24 @@
 
 这是 Open Glyph（开放古文字）的可复用 Agent Skills 集合，供能够读取 `SKILL.md` 的 Agent 使用。
 
+## 2026-10-29：连接 CLI 0.6 与 OpenGlyph-LaTeX，IDS 并行保留
+
+三个技能已补齐图像模板检索、编号部件编辑和 LaTeX 项目交付。默认优先
+**ASCII 模板 JSON → 实际字体 → LaTeX 论文**；原来的 `glyph` / `ids` / `structure`
+方案继续支持，用户明确指定 IDS 时直接使用。IDS 产生的字体也可以进入 LaTeX，二者不是互斥的排版软件。
+
+- 已有字或已有字体包：用 [OpenGlyph-LaTeX](https://github.com/Open-Glyph/OpenGlyph-LaTeX) 直接编译，不要求登录或调用模型。
+- 新形：用真实底字和节点写高层 JSON，或用保留的 IDS/结构树；不写底层 KAGE 笔画串。
+- 可选图像前置：CLI 0.6+ 的 `glyph templates` / `glyph inspect` / `glyph compose --program` 或 `--proposal`，以实际服务 schema 为准。
+- 人工决定与文件交付分开：机器核对不阻塞可用文件交付；需用户选形或授权时真正等待，网站沙箱由控制程序在用户确认结束后回收。
+
+详见 [LaTeX 排印参考](guwenzi-compose/references/openglyph-latex.md)、
+[模板 JSON 参考](guwenzi-compose/references/template-json.md) 和
+[外部 CLI 参考](guwenzi-remote/references/atomic-cli.md)。
+
+这次更新的是技能说明，不代表重新发布网站、PAI、PyPI 或 LaTeX 宏包。客户更新时应保留整个技能目录与 references，
+不能只升级 CLI；已有三个技能的用户也需要更新并重新加载技能文件。
+
 ## 0.5.1：交付字体正文，验收不作完成门槛
 
 新造字不再只交 PNG。KAGE 产生轮廓，程序统一分配字体内码位并汇编 OTF/TTF，最终给出可编辑 Word、字体文字 HTML/PDF 和字体映射包；原图核对表是独立附注。普通 Unicode 保留原码，未确认身份的形保留 gwz 身份和字体局部 PUA。

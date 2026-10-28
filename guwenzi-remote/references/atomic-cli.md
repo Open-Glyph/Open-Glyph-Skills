@@ -30,13 +30,31 @@ guwenzi-tools glyph lookup 旣 --output work/variants
 
 ## 按结构造字，不写笔画
 
+### 可编辑模板路径（CLI 0.6+，默认优先）
+
+先用 `guwenzi-tools tools --server` 确认 `glyph_template_search`、`glyph_template_inspect` 与 `glyph_compose` 的 program/proposal_id 字段，再按需调用：
+
+```sh
+guwenzi-tools glyph templates ASSET_ID --scope all --output work/templates
+guwenzi-tools glyph inspect --program @program.json --hint-asset ASSET_ID --output work/nodes
+guwenzi-tools glyph compose --program @edited.json --hint-asset ASSET_ID --output work/font
+# 若 inspect 的原图绑定候选合适，替代上一条：
+guwenzi-tools glyph compose --proposal RETURNED_ID --hint-asset ASSET_ID --output work/font
+```
+
+program.json 来自实际候选，节点来自 inspect；scope=component 检索部件/笔画组。高层 JSON 使用 schema/base/edits，可选 modules/select，不写底层 KAGE。原图绑定 proposal 不能跨字复用。细节见 guwenzi-compose 的模板参考。
+
+图像服务可解析 `box="auto"` 或约束拟合，LaTeX 离线编译器只接收已解析整数框。`guwenzi.template-program.v1` 是单字程序，`openglyph.project.v1` 是离线项目容器；不要混用。下载实际 OTF、catalog.tex、project.json 和 LaTeX 包，按用户要求编译或重建。普通 LaTeX 编译不回调远端服务。
+
+### 原有整字／IDS／结构树路径（继续支持）
+
 ```sh
 guwenzi-tools glyph lookup u65e3-j --mode parts --output work/parts
 guwenzi-tools glyph compose --glyph '实际返回的glyph_ref' --output work/reused
 guwenzi-tools glyph compose --ids '⿱艹⿰日月' --output work/composed
 ```
 
-glyph/ids/structure 三选一。部件和比例由 Agent 选择，程序处理依赖、几何布局和全部底层 KAGE；不编写 kage_json 或笔画坐标。原图可用 --hint-asset 绑定。只有确有依据的标准字符才传 --unicode-codepoint；否则字体局部 PUA 保留形体，不猜一个熟字替代。批量用现有 glyph_compose 的 items 或 batch helper，并保留各项成败。
+当前接口 glyph/ids/structure/program/proposal_id 五选一；IDS 和结构树没有废弃。能复用的整字不必编辑，简单的上下/左右等结构可走 IDS；用户指定 IDS 时按其要求。程序处理部件依赖与底层 KAGE。原图可用 --hint-asset 绑定；只有确有依据的标准字符才传 --unicode-codepoint，否则用字体局部 PUA 保留形体。批量保留各项成败。
 
 print_font.status=ready 表示字体文件可用。下载 OTF/TTF、mapping 与可复制文本；PNG/SVG 是预览或中间轮廓，不替代最终字体正文。
 
@@ -61,11 +79,11 @@ manifest 示例（将引用换成工具实际返回的值）：
 
 reading.html 是原图证据预览，不是排印正文。主文档用字体文字，原图对照另作附注。缺实际字体、损坏文件、cmap 冲突会明确报错，不降级成图片、空白或猜读；这与可选的字形质量检查不同。
 
-## 核对不作为完成条件
+## 机器核对与人工接受分开
 
 glyph_verify / verify-font 是可选质量诊断。未执行、needs_review、blocked 或未达相似度均不阻止排印、交付和任务完成，不触发无限重试或为了“补全回执”重复调用。按用户需要精校时检查真实最终字体，保留来源、码位和差异；不要把新字体自动继承成已核对。
 
-交付完成与字形正确分开记录。可直接交付可用结果并说明疑点，不能声称未经核对的形已得到学术确认。DINO 不作验收，0.95 不是正确率或发布阈值。
+交付完成与字形正确分开记录。可先交付可用结果供人校读；需要用户回答或选形时实际等待，不把口头提问当授权。不能声称未经核对的形已得到学术确认。DINO 不作验收，0.95 不是正确率或发布阈值。
 
 ## 状态与安全
 

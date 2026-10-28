@@ -1,17 +1,24 @@
 ---
 name: guwenzi-compose
-description: Reuse or structurally assemble palaeographic glyphs with KAGE-backed fonts, Unicode or font-local PUA mappings and source-to-final-font comparisons. The agent chooses existing parts, never programs individual strokes. Not for ordinary reading alone.
+description: Construct and typeset palaeographic glyphs with OpenGlyph-LaTeX and editable ASCII template JSON, while retaining IDS/structure composition. Use for rare-character fonts, component edits and compilable papers, not ordinary reading alone.
 ---
 
 # 结构化造字、打印字体与校样
 
-AI负责看图、选整字/变体/部件和表达结构；程序负责坐标、部件依赖、KAGE笔画、字体与文档。**不写kage_json、table、笔画数字串或逐笔坐标。** 不给每个沙箱安装KAGE、DINO或整字库。
+AI负责看图、选整字/变体/部件和表达结构；程序负责坐标、部件依赖、KAGE笔画、字体与文档。**不写kage_json、table、笔画数字串或逐笔坐标。** 远端工具模式不向每个沙箱复制整库或安装模型；本地离线构字使用 OpenGlyph-LaTeX 源码包自带的 KAGE 和源数据。
+
+## 两条路径并行，优先 LaTeX 与可编辑模板
+
+- 用户要排论文、可编译源码或缺字输入时，优先读 [OpenGlyph-LaTeX 排印](references/openglyph-latex.md)：已有字按 ASCII 编号调用，新形用可重放模板 JSON 编成字体，再混排进 `.tex`。普通编译离线，不需要 OpenGlyph 账号或 guwenzi-tools。
+- 按图找底字、换部件或增删饰笔时，读 [模板 JSON 操作](references/template-json.md)。用实际候选与节点编号，不要求先键入罕见汉字。
+- **保留原有 IDS/structure 方案。** 清楚的层次结构仍可使用 `ids` 或结构树；整字仍可用 `glyph` 直接复用。用户明确指定 IDS 时直接使用，不强迫转 JSON。IDS 的造字输出也可作为字体送入 LaTeX，不能把 LaTeX 当成另一种识字模型。
+- 尊重指定产物：LaTeX 任务交付可编译项目与 PDF；Word/HTML 任务继续走 `typeset`。不因默认优先 LaTeX 就擅自改用户选定的格式。
 
 ## 网站：按编号，不按手工框
 
 遵守guwenzi-remote的托管契约。原片由专用检测器登记，模型不能重裁或补框。SearchCandidates(page_key,unit_ids)查形，glyph_lookup(query,mode)查看实际字库整字/变体/部件；不能用“能输入Unicode”替代原形比较。
 
-先逐批RecordReadings保存文字/角色（未知可先null加具体note），不要等所有字造好才存台账；初录完成后再集中ComposeCandidate或ComposeCandidates。输入page_key、unit_id及glyph/ids/structure，模型不填写hint_asset_id，程序从编号绑定。每次只修有证据差异的项，不因上下文整理重复已做的整批组字。
+先逐批 RecordReadings 保存文字/角色（未知可先 null 加具体 note），不要等所有字造好才存台账；初录后集中 ComposeCandidate 或 ComposeCandidates。当前模板接口支持 glyph/ids/structure/program/proposal_id 五选一，按实际工具表决定；模型不填写网站 hint_asset_id，程序从 page_key、unit_id 绑定原片。每次只修有证据差异的项，不因上下文整理重复整批组字。
 
 - 有匹配整字就复用lookup返回的glyph_ref，不拆笔画。
 - 无整字再用IDS，如 `⿱艹⿰日月`，或 `{"op":"⿰","children":[{"glyph":"实际左部引用"},{"glyph":"实际右部引用"}],"weights":[1,2]}`。
@@ -22,7 +29,7 @@ VerifyCandidates可按需比较编号原片与指定字体和码位，作为质�
 
 ## 正文必须是字体文字，不是插图
 
-用户要求排印、可编辑释文或打印字体时，主交付必须是正文 DOCX/HTML/PDF 加统一 OTF/TTF 与 mapping。原图对照表只作独立附注，不能用图文混排或单字校样替代整篇正文。
+用户要求排印、可编辑释文或打印字体时，主交付是用户所选格式的字体文字正文。LaTeX 要包含 `.tex`、`openglyph.sty`、实际字体目录、映射/构字来源和 PDF；Word/HTML 则用其正文与字体包。原图对照只作独立附注，不能用图文混排或单字校样替代整篇正文。
 
 网站 ExportCapture 默认 delivery=typeset：程序按台账汇编统一文档字体，解决多个单字包的 U+E000 冲突，并嵌入正文 Word/PDF。SaveTranscription 优先保留 composition 的 gwz 身份，不用原先猜读替掉已造字形。needs_print_fonts 会列出待补 unit_id；先查形并 ComposeCandidates，不能删字、留空或改用图片后宣布成功。delivery=evidence 仅供暂存阶段证据。
 
@@ -40,6 +47,8 @@ print_font.status=ready只表示OTF/TTF、mapping、可复制文本和校样文�
 原始照片/path、来源字体、检测编号、gwz资产、KAGE重建、排印字体、作者释读和模型推断分层保存。不做NFC/NFKC、繁简转换或静默替字。原件不被重建字替换；字体嵌入不等于内容版权授权。
 
 ## 可选质量诊断，不是完成门槛
+
+这里是机器检查不阻塞文件交付，不是取消人工验收。需要用户选形、确认歧义时用当前环境的提问工具真实等待。网站交付后的工作区由控制程序保留/暂停，用户明确确认结束才回收；外部 LaTeX 项目交付后保留源文件和字库，不擅自删除。
 
 字形核对按研究需要或用户要求开展，不强制每字先验收再交付。普通Unicode、PUA和符号都可检查实际字体渲染；源图/字体/码位变化后旧比较不代表新结果。检查点包括缺点、多笔、部件、开闭和连接，不能把结构错说成风格差异。
 
